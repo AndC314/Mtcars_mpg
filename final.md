@@ -1,0 +1,135 @@
+---
+title: "Mileage of cars with Automatic or Manual Transmission"
+output:html_notebook
+---
+```{r load, include=FALSE}
+library(dplyr, quiet=T)
+library(data.table, quiet=T)
+library(lubridate, quiet=T)
+library('ggplot2', quiet=T)
+library(plyr, quiet=T) 
+```
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  fig.path = "figs/fig-"
+)
+```
+# Introduction
+
+We want to load mtcars dataset and check the data to see if it possible to answer two questions:
+
+- "Is an automatic or manual transmission better for MPG"
+
+- "Quantify the MPG difference between automatic and manual transmissions"
+
+we will check the data, test the hypothesis that a transmission is better than the other and see the data on a boxplot.
+Then we will do some regression analysis on the data finding the most important variables which have an influence on mpg.
+
+# Exploratory Data Analysis
+
+```{r}
+head(mtcars)
+```
+
+The data frame is composed with 32 observations on 11 (numeric) variables.
+
+-	mpg	Miles/(US) gallon
+-	cyl	Number of cylinders
+-	disp	Displacement (cu.in.)
+-	hp	Gross horsepower
+-	drat	Rear axle ratio
+-	wt	Weight (1000 lbs)
+-	qsec	1/4 mile time
+-	vs	Engine (0 = V-shaped, 1 = straight)
+-	am	Transmission (0 = automatic, 1 = manual)
+-	gear	Number of forward gears
+-	carb	Number of carburetors
+First we do a t-test in order to see if alpha<0.05.
+```{r}
+mtcars$am = as.factor(mtcars$am)
+levels(mtcars$am) = c("Automatic", "Manual")
+summary(mtcars$am)
+
+t.test(mpg~am,data=mtcars)
+```
+
+There are 19 cars with automatic transmission and 13 with manual.
+Since alpha < 0.05 the null hypothesis can't be true. We search for a relation between mpg and kind of transmission. From the test above it seems Manual is better than Automatic.
+We can now go further and see how the variables are correlated to mpg.
+
+# Analysis 
+
+We can check now the dependencies of mpg for all elements.
+```{r}
+fit <- lm(mpg~.-1, data=mtcars)
+summary(fit)$coef
+```
+From the results it seems that the most important parameters are qsec, wt and am. We exclude carb, gear, vs, drat and cyl and repeat the multivariable regression.
+
+To check if our conclusions are correct, we can see if the automatic variable selection function of R gives us the same results.
+```{r}
+best = step(lm(data=mtcars, mpg~.), trace=0)
+summary(best)
+```
+We can see that both transmission and qsec gives a positive change of mpg while wt has a negative correlation.
+The model explains approximatively 85% of the variance.
+In the appendix the full analysis can be found.
+```{r}
+new2 <- mtcars[, c('mpg','wt','qsec','am')]
+fit2 <- lm(mpg~.-1, data=new2)
+```
+```{r}
+par(mfrow = c(2, 2))
+plot(fit2)
+```
+
+There is not a clear trend on residuals: the model is a good approximation of the data.
+
+# Conclusion
+
+On average, automatic transmission is worse than manual by 2.9 mpg. However there might be situations, including weight and acceleration (1/4 mile time), in which automatic transmission perform better.
+
+#Appendix
+
+```{r}
+boxplot(mpg~am, data=mtcars, main='Car Mileage Data', xlab='Transmission',ylab='Miles per Gallon', col=c('blue','red'), ylim=c(5,35))
+```
+
+From the above boxplot it is possible to see that Manual  transmission tend to have higher MPG than automatic as seen in the t-test data. 
+We can check wether this is true for cars with different number of cylinders.
+```{r}
+boxplot(mpg~am*cyl, data=mtcars, col=c('gold','green'), main='Car Mileage Data', xlab='Transmission / Cylinders',ylab='Miles per Gallon', ylim=c(5,35))
+```
+
+
+ At 6 cilynders the difference is smaller. At 8 they are almost equivalent. however, only 2 cars have manual transmission for 8 cylinders.
+
+```{r}
+new <- mtcars[, c('mpg','wt','qsec','am','hp')]
+fit <- lm(mpg~.-1, data=new)
+summary(fit)$coef
+new2 <- mtcars[, c('mpg','wt','qsec','am')]
+fit2 <- lm(mpg~.-1, data=new2)
+summary(fit2)$coef
+```
+
+```{r}
+pairs(new2, panel = panel.smooth, main = "mtcars data")
+```
+
+
+A final graph with ggplot to see mpg, wt and am together. A similar plot of mpg, qsec and am.
+
+```{r}
+g = ggplot(new2, aes(y=mpg, x=wt, colour=factor(am)))
+g = g + geom_point(size = 6, colour = "black") + geom_point(size = 4)+ geom_smooth(method = lm, se = FALSE, colour = "black")
+g = g + xlab("Weight (1000 tons)") + ylab("Mileage per gallon")
+g
+```
+```{r}
+g = ggplot(new2, aes(y=mpg, x=qsec, colour=factor(am)))
+g = g + geom_point(size = 6, colour = "black") + geom_point(size = 4)+ geom_smooth(method = lm, se = FALSE, colour = "black")
+g = g + xlab("q sec") + ylab("Mileage per gallon")
+g
+```
